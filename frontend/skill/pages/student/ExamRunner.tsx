@@ -1,0 +1,218 @@
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Lang, PendingQuiz, ExamResult, User, Question } from '../../types';
+import { api } from '../../api/client';
+import { Button, Card } from '../../components/UI';
+import { Clock, ShieldAlert, Award, ArrowRight, Home, CheckCircle, Target } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+
+interface ExamRunnerProps {
+  exam: PendingQuiz;
+  lang: Lang;
+  onExit: () => void;
+}
+
+const ExamRunner: React.FC<ExamRunnerProps> = ({ exam, lang, onExit }) => {
+  const { user } = useAuth();
+  const isEn = lang === 'en';
+  const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<ExamResult | null>(null);
+  const [certRequested, setCertRequested] = useState(false);
+  
+  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>(exam.questions || []);
+  const [loadingQuestions, setLoadingQuestions] = useState(!exam.questions || exam.questions.length === 0);
+
+  useEffect(() => {
+    if (loadingQuestions) {
+        api.exams.getQuestions(exam.id).then(qs => {
+            setDynamicQuestions(qs);
+            setLoadingQuestions(false);
+        }).catch(err => {
+            console.error(err);
+            setLoadingQuestions(false);
+        });
+    }
+  }, [exam.id, loadingQuestions]);
+
+  const submitExam = useCallback(async (forced = false) => {
+    if (isSubmitting || result || !user) return;
+    setIsSubmitting(true);
+
+    try {
+        const res = await api.exams.submit(exam.id, { answers, exam, user });
+        setResult(res);
+        
+        const attempted = JSON.parse(localStorage.getItem('attempted_exams') || '[]');
+        localStorage.setItem('attempted_exams', JSON.stringify([...attempted, exam.id]));
+        
+    } catch (e) {
+        console.error("Submission failed", e);
+    } finally {
+        setIsSubmitting(false);
+    }
+  }, [answers, exam, isSubmitting, result, user]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+        if (document.hidden && !result) {
+            submitExam(true);
+            alert(isEn ? "Exam submitted because you left the page." : "تم تسليم الامتحان لأنك غادرت الصفحة.");
+        }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [submitExam, isEn, result]);
+
+  useEffect(() => {
+    if (result || loadingQuestions) return;
+    const timer = setInterval(() => {
+        setTimeLeft(prev => {
+            if (prev <= 1) {
+                clearInterval(timer);
+                submitExam(true);
+                return 0;
+            }
+            return prev - 1;
+        });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [submitExam, result, loadingQuestions]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const handleOptionSelect = (qId: number, option: string) => {
+      setAnswers(prev => ({ ...prev, [qId]: option }));
+  };
+
+  const handleRequestCertificate = async () => {
+    if (!user || certRequested) return;
+    await api.notifications.requestCertificate(exam.course_title, user, exam.instructor_id);
+    setCertRequested(true);
+  };
+
+  if (loadingQuestions) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading Security Protocol...</div>;
+
+  if (result) {
+      return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+              <Card className="w-full max-w-lg text-center !p-10 animate-in zoom-in duration-500 shadow-neon">
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg ${result.is_passed ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                      {result.is_passed ? <Award size={56} /> : <ShieldAlert size={56} />}
+                  </div>
+                  
+                  <h2 className="text-4xl font-bold text-white mb-2">
+                      {result.is_passed ? (isEn ? "Congratulations!" : "تهانينا!") : (isEn ? "Keep Trying" : "حظ أوفر")}
+                  </h2>
+                  
+                  <div className="bg-white/5 rounded-2xl p-6 my-8 border border-white/10">
+                      <div className="text-xs text-slate-400 uppercase font-bold mb-2 tracking-widest">{isEn ? "Your Official Score" : "درجتك النهائية"}</div>
+                      <div className="text-5xl font-mono font-bold text-primary mb-2">
+                         {result.earned_points} / {result.total_points}
+                      </div>
+                      <div className="text-sm font-bold text-slate-300">
+                          {isEn ? `You achieved ${result.score}% accuracy` : `لقد حققت دقة بنسبة ${result.score}%`}
+                      </div>
+                  </div>
+
+                  <div className="space-y-4">
+                      {result.is_passed && (
+                          <Button 
+                            onClick={handleRequestCertificate} 
+                            disabled={certRequested}
+                            className={`w-full bg-gradient-to-r ${certRequested ? 'from-slate-600 to-slate-700' : 'from-amber-500 to-yellow-600'} border-none text-white shadow-xl shadow-amber-500/20`}
+                          >
+                             {certRequested ? (isEn ? "Request Pending..." : "طلبك قيد المراجعة...") : (isEn ? "Request Official Certificate" : "طلب شهادة رسمية")}
+                          </Button>
+                      )}
+                      
+                      <Button onClick={onExit} variant="outline" className="w-full border-white/20 text-white hover:bg-white/10">
+                          <Home size={18} /> {isEn ? "Back to Exams" : "العودة لقائمة الامتحانات"}
+                      </Button>
+                  </div>
+              </Card>
+          </div>
+      );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col no-select">
+       
+       <div className="bg-black/50 backdrop-blur-md p-4 flex justify-between items-center border-b border-white/10 sticky top-0 z-50">
+           <div className="flex items-center gap-3">
+               <ShieldAlert className="text-primary animate-pulse" size={24} />
+               <div>
+                  <h4 className="font-bold text-sm leading-none">{exam.title}</h4>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">{isEn ? "Point-Based Grading" : "تصحيح معتمد على النقاط"}</span>
+               </div>
+           </div>
+           <div className={`text-2xl font-mono font-bold ${timeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
+               {formatTime(timeLeft)}
+           </div>
+       </div>
+
+       <div className="flex-1 max-w-4xl mx-auto w-full p-6 flex flex-col justify-center">
+           <div className="mb-8 flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase">{isEn ? "Question" : "سؤال"} {currentQuestion + 1}/{dynamicQuestions.length}</span>
+                  <div className="bg-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
+                      <Target size={10}/> {dynamicQuestions[currentQuestion]?.points || 0} pts
+                  </div>
+               </div>
+               <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                   <div className="h-full bg-primary transition-all duration-300 shadow-[0_0_10px_#4BC594]" style={{ width: `${((currentQuestion + 1) / dynamicQuestions.length) * 100}%` }}></div>
+               </div>
+           </div>
+
+           <Card className="!p-10 mb-8 !bg-white/5 border-white/10">
+               <h3 className="text-2xl md:text-3xl font-bold leading-relaxed mb-10 text-white">
+                   {dynamicQuestions[currentQuestion]?.text}
+               </h3>
+               
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   {dynamicQuestions[currentQuestion]?.options.map((opt, i) => (
+                       <button
+                         key={i}
+                         onClick={() => handleOptionSelect(dynamicQuestions[currentQuestion].id, opt)}
+                         className={`w-full p-6 rounded-2xl border-2 text-left transition-all flex items-center justify-between group ${
+                             answers[dynamicQuestions[currentQuestion].id] === opt 
+                             ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/20' 
+                             : 'border-white/5 bg-white/5 hover:border-white/20 text-slate-400 hover:text-white'
+                         }`}
+                       >
+                           <span className="flex-1 font-bold">{opt}</span>
+                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ml-4 ${answers[dynamicQuestions[currentQuestion].id] === opt ? 'border-primary bg-primary text-white' : 'border-white/20'}`}>
+                               {answers[dynamicQuestions[currentQuestion].id] === opt && <CheckCircle size={14} />}
+                           </div>
+                       </button>
+                   ))}
+               </div>
+           </Card>
+
+           <div className="flex justify-between items-center">
+               <Button variant="outline" className="border-white/10 text-white" disabled={currentQuestion === 0} onClick={() => setCurrentQuestion(p => p - 1)}>
+                   {isEn ? "Previous" : "السابق"}
+               </Button>
+               
+               {currentQuestion < dynamicQuestions.length - 1 ? (
+                   <Button onClick={() => setCurrentQuestion(p => p + 1)}>
+                       {isEn ? "Next" : "التالي"} <ArrowRight size={18} />
+                   </Button>
+               ) : (
+                   <Button onClick={() => submitExam()} isLoading={isSubmitting} className="!bg-emerald-500 !px-10">
+                       {isEn ? "Final Submission" : "تسليم الامتحان"}
+                   </Button>
+               )}
+           </div>
+       </div>
+    </div>
+  );
+};
+
+export default ExamRunner;

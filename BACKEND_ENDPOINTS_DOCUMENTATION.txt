@@ -1,0 +1,1269 @@
+================================================================================
+                    TEACHIFY PROJECT - BACKEND API ENDPOINTS
+                           Complete Documentation
+================================================================================
+
+PROJECT: Teachify (Educational Platform)
+BACKEND: Django REST Framework (DRF)
+VERSION: 1.0
+LAST UPDATED: 2026-01-05
+
+================================================================================
+                              TABLE OF CONTENTS
+================================================================================
+
+1. AUTHENTICATION & ACCOUNTS (api/accounts/)
+2. COURSES, LESSONS & CATEGORIES (api/courses/)
+3. EXAMS, QUESTIONS & CERTIFICATES (api/)
+4. NOTIFICATIONS (api/)
+
+================================================================================
+                    1. AUTHENTICATION & ACCOUNTS (api/accounts/)
+================================================================================
+
+📝 ENDPOINT: POST /api/accounts/register/
+├─ METHOD: POST
+├─ PERMISSION: AllowAny (No authentication required)
+├─ DESCRIPTION: Create a new user account for students, instructors, or admin
+├─ REQUEST BODY:
+│  {
+│    "email": "user@example.com",        [Required] User email address
+│    "username": "optional_username",    [Optional] User username
+│    "password": "securepassword123",    [Required] User password (validated)
+│    "role": "student|instructor|admin", [Required] User role
+│    "phone_number": "+1234567890",      [Optional] User phone number
+│    "avatar": null                       [Optional] User avatar file
+│  }
+├─ RESPONSE (201 Created):
+│  {
+│    "id": 1,
+│    "email": "user@example.com",
+│    "username": "generated_username",
+│    "role": "student",
+│    "phone_number": "+1234567890",
+│    "avatar": null,
+│    "is_verified": false
+│  }
+├─ ERROR RESPONSES:
+│  400: Bad Request (validation errors)
+│      {
+│        "email": ["This field may not be blank."],
+│        "password": ["Password validation error"]
+│      }
+└─ NOTES: Password is validated according to Django's password validators
+
+---
+
+📝 ENDPOINT: POST /api/accounts/login/
+├─ METHOD: POST
+├─ PERMISSION: AllowAny (No authentication required)
+├─ DESCRIPTION: User login - Returns JWT access and refresh tokens + user data
+├─ REQUEST BODY:
+│  {
+│    "email": "user@example.com",       [Required] Email or username
+│    "password": "securepassword123"    [Required] Password
+│  }
+├─ RESPONSE (200 OK):
+│  {
+│    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",     JWT access token
+│    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",    JWT refresh token
+│    "user": {
+│      "id": 1,
+│      "username": "john_doe",
+│      "email": "john@example.com",
+│      "role": "student",
+│      "phone_number": "+1234567890",
+│      "avatar": "http://...",
+│      "is_verified": true
+│    }
+│  }
+├─ ERROR RESPONSES:
+│  401: Unauthorized
+│      {
+│        "detail": "No active account found with the given credentials"
+│      }
+└─ NOTES: Tokens are JWT (JSON Web Tokens) with role and email embedded
+
+---
+
+📝 ENDPOINT: POST /api/accounts/refresh/
+├─ METHOD: POST
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Refresh JWT access token using refresh token
+├─ REQUEST BODY:
+│  {
+│    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  [Required] Refresh token
+│  }
+├─ RESPONSE (200 OK):
+│  {
+│    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  New JWT access token
+│  }
+├─ ERROR RESPONSES:
+│  401: Unauthorized
+│      {
+│        "detail": "Token is invalid or expired"
+│      }
+└─ NOTES: Called by frontend to refresh token when access token expires
+
+---
+
+📝 ENDPOINT: GET /api/accounts/me/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated (Login required)
+├─ DESCRIPTION: Retrieve current logged-in user's complete profile data
+├─ REQUEST HEADERS:
+│  Authorization: Bearer <access_token>
+├─ REQUEST BODY: None
+├─ RESPONSE (200 OK):
+│  {
+│    "id": 1,
+│    "username": "john_doe",
+│    "email": "john@example.com",
+│    "role": "student",
+│    "phone_number": "+1234567890",
+│    "avatar": "http://example.com/media/avatars/john.jpg",
+│    "is_verified": true
+│  }
+├─ ERROR RESPONSES:
+│  401: Unauthorized (Missing or invalid token)
+└─ NOTES: Returns user's own profile data
+
+---
+
+📝 ENDPOINT: GET /api/token/
+├─ METHOD: POST
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Alternative JWT token obtain endpoint
+├─ REQUEST BODY:
+│  {
+│    "email": "user@example.com",
+│    "password": "password123"
+│  }
+├─ RESPONSE (200 OK):
+│  {
+│    "access": "...",
+│    "refresh": "...",
+│    "role": "student",
+│    "email": "user@example.com"
+│  }
+└─ NOTES: Similar to /login/ endpoint
+
+---
+
+📝 ENDPOINT: POST /api/token/refresh/
+├─ METHOD: POST
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Refresh JWT token endpoint
+├─ REQUEST BODY:
+│  {
+│    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+│  }
+├─ RESPONSE (200 OK):
+│  {
+│    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+│  }
+└─ NOTES: Alternative refresh endpoint
+
+================================================================================
+                    2. COURSES, LESSONS & CATEGORIES (api/courses/)
+================================================================================
+
+📝 ENDPOINT: GET /api/courses/courses/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get list of all courses with pagination
+├─ QUERY PARAMETERS:
+│  - page: Integer (pagination page number)
+│  - search: String (search courses by title/description)
+├─ REQUEST BODY: None
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 50,
+│    "next": "http://api.example.com/api/courses/courses/?page=2",
+│    "previous": null,
+│    "results": [
+│      {
+│        "id": 1,
+│        "instructor": 5,
+│        "title": "Python 101",
+│        "description": "Learn Python basics",
+│        "category": 1,
+│        "category_details": {
+│          "id": 1,
+│          "name": "Programming",
+│          "slug": "programming"
+│        },
+│        "price": 49.99,
+│        "thumbnail": "http://...",
+│        "created_at": "2025-01-01T10:00:00Z",
+│        "lessons": [
+│          {
+│            "id": 1,
+│            "course": 1,
+│            "title": "Lesson 1: Introduction",
+│            "description": "Introduction to Python",
+│            "video_url": "https://youtube.com/...",
+│            "order": 1
+│          }
+│        ],
+│        "is_enrolled": false
+│      }
+│    ]
+│  }
+├─ ERROR RESPONSES:
+│  400: Bad Request (invalid query parameters)
+└─ NOTES: Anyone can view course listings
+
+---
+
+📝 ENDPOINT: POST /api/courses/courses/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Create a new course (Instructor only)
+├─ REQUEST HEADERS:
+│  Authorization: Bearer <access_token>
+├─ REQUEST BODY:
+│  {
+│    "title": "Advanced Python",                    [Required] Course title
+│    "description": "Advanced Python concepts",     [Required] Course description
+│    "category": 1,                                [Required] Category ID
+│    "price": 99.99,                               [Required] Course price
+│    "thumbnail": <file>,                          [Optional] Course thumbnail image
+│  }
+├─ RESPONSE (201 Created):
+│  {
+│    "id": 51,
+│    "instructor": 5,
+│    "title": "Advanced Python",
+│    "description": "Advanced Python concepts",
+│    "category": 1,
+│    "category_details": {...},
+│    "price": 99.99,
+│    "thumbnail": "http://...",
+│    "created_at": "2026-01-05T10:00:00Z",
+│    "lessons": [],
+│    "is_enrolled": false
+│  }
+├─ ERROR RESPONSES:
+│  401: Unauthorized (Not authenticated)
+│  403: Forbidden (Not an instructor)
+│  400: Bad Request (Missing required fields)
+└─ NOTES: Automatically sets instructor to current user
+
+---
+
+📝 ENDPOINT: GET /api/courses/courses/{id}/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get detailed course information by ID
+├─ REQUEST BODY: None
+├─ RESPONSE (200 OK):
+│  {
+│    "id": 1,
+│    "instructor": 5,
+│    "title": "Python 101",
+│    "description": "Learn Python basics",
+│    "category": 1,
+│    "category_details": {...},
+│    "price": 49.99,
+│    "thumbnail": "http://...",
+│    "created_at": "2025-01-01T10:00:00Z",
+│    "lessons": [...],
+│    "is_enrolled": true|false
+│  }
+├─ ERROR RESPONSES:
+│  404: Not Found (Course doesn't exist)
+└─ NOTES: is_enrolled field shows if current user is enrolled
+
+---
+
+📝 ENDPOINT: PUT /api/courses/courses/{id}/
+├─ METHOD: PUT
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Update an entire course (Instructor only)
+├─ REQUEST HEADERS:
+│  Authorization: Bearer <access_token>
+├─ REQUEST BODY: (all fields required)
+│  {
+│    "title": "Updated Title",
+│    "description": "Updated description",
+│    "category": 1,
+│    "price": 99.99,
+│    "thumbnail": <file>
+│  }
+├─ RESPONSE (200 OK): Updated course object
+├─ ERROR RESPONSES:
+│  401/403/404: See above
+└─ NOTES: Only instructor who created the course can update
+
+---
+
+📝 ENDPOINT: PATCH /api/courses/courses/{id}/
+├─ METHOD: PATCH
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Partially update a course
+├─ REQUEST BODY: (any fields can be updated)
+│  {
+│    "title": "New Title"
+│  }
+├─ RESPONSE (200 OK): Updated course object
+└─ NOTES: Partial update - only changed fields needed
+
+---
+
+📝 ENDPOINT: DELETE /api/courses/courses/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Delete a course
+├─ RESPONSE (204 No Content): Empty response on success
+├─ ERROR RESPONSES:
+│  401/403/404: See above
+└─ NOTES: Deletes course and all associated lessons
+
+---
+
+📝 ENDPOINT: GET /api/courses/lessons/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get all lessons with pagination
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 100,
+│    "next": "...",
+│    "previous": null,
+│    "results": [
+│      {
+│        "id": 1,
+│        "course": 1,
+│        "title": "Lesson 1: Introduction",
+│        "description": "Introduction content",
+│        "video_url": "https://youtube.com/...",
+│        "order": 1
+│      }
+│    ]
+│  }
+└─ NOTES: Lists all lessons from all courses
+
+---
+
+📝 ENDPOINT: POST /api/courses/lessons/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Create a new lesson in a course
+├─ REQUEST BODY:
+│  {
+│    "course": 1,                      [Required] Course ID
+│    "title": "New Lesson",           [Required] Lesson title
+│    "description": "Lesson content",  [Required] Lesson description
+│    "video_url": "https://...",       [Required] Video URL
+│    "order": 2                        [Required] Lesson order in course
+│  }
+├─ RESPONSE (201 Created): Lesson object
+└─ NOTES: Only instructor of the course can create lessons
+
+---
+
+📝 ENDPOINT: GET /api/courses/lessons/{id}/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get specific lesson details
+├─ RESPONSE (200 OK): Lesson object
+└─ NOTES: Returns lesson content and video URL
+
+---
+
+📝 ENDPOINT: PUT /api/courses/lessons/{id}/
+├─ METHOD: PUT
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Update entire lesson
+├─ REQUEST BODY: (all fields required)
+│  {
+│    "course": 1,
+│    "title": "Updated Title",
+│    "description": "Updated content",
+│    "video_url": "https://...",
+│    "order": 2
+│  }
+├─ RESPONSE (200 OK): Updated lesson object
+└─ NOTES: Full update required
+
+---
+
+📝 ENDPOINT: PATCH /api/courses/lessons/{id}/
+├─ METHOD: PATCH
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Partially update lesson
+├─ REQUEST BODY: (any fields)
+│  {
+│    "title": "New Title"
+│  }
+├─ RESPONSE (200 OK): Updated lesson object
+└─ NOTES: Partial update
+
+---
+
+📝 ENDPOINT: DELETE /api/courses/lessons/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Delete a lesson
+├─ RESPONSE (204 No Content)
+└─ NOTES: Deletes the lesson and its associated data
+
+---
+
+📝 ENDPOINT: GET /api/courses/categories/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get all course categories
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 10,
+│    "next": null,
+│    "previous": null,
+│    "results": [
+│      {
+│        "id": 1,
+│        "name": "Programming",
+│        "slug": "programming"
+│      },
+│      {
+│        "id": 2,
+│        "name": "Design",
+│        "slug": "design"
+│      }
+│    ]
+│  }
+└─ NOTES: Categories are read-only for students
+
+---
+
+📝 ENDPOINT: GET /api/courses/categories/{id}/
+├─ METHOD: GET
+├─ PERMISSION: AllowAny
+├─ DESCRIPTION: Get specific category details
+├─ RESPONSE (200 OK): Category object
+└─ NOTES: Returns single category
+
+---
+
+📝 ENDPOINT: GET /api/courses/enrollments/
+├─ METHOD: GET
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Get all student enrollments in instructor's courses
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 25,
+│    "results": [
+│      {
+│        "id": 1,
+│        "student": 10,
+│        "student_email": "student@example.com",
+│        "course": 1,
+│        "course_title": "Python 101",
+│        "enrolled_at": "2025-12-20T15:30:00Z"
+│      }
+│    ]
+│  }
+└─ NOTES: Only instructors can see enrollments
+
+---
+
+📝 ENDPOINT: POST /api/courses/enrollments/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Create/register a student enrollment
+├─ REQUEST BODY:
+│  {
+│    "student": 10,        [Required] Student user ID
+│    "course": 1           [Required] Course ID
+│  }
+├─ RESPONSE (201 Created): Enrollment object
+└─ NOTES: Instructor manages student enrollments
+
+---
+
+📝 ENDPOINT: GET /api/courses/progress/
+├─ METHOD: GET
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Get student's lesson progress
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 5,
+│    "results": [
+│      {
+│        "id": 1,
+│        "lesson": 1,
+│        "lesson_title": "Lesson 1: Introduction",
+│        "student": 10,
+│        "is_completed": true,
+│        "completed_at": "2025-12-25T10:00:00Z",
+│        "progress_percent": 100
+│      }
+│    ]
+│  }
+└─ NOTES: Shows student's progress in lessons
+
+---
+
+📝 ENDPOINT: POST /api/courses/progress/
+├─ METHOD: POST
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Create or update lesson progress
+├─ REQUEST BODY:
+│  {
+│    "lesson": 1,              [Required] Lesson ID
+│    "is_completed": true,     [Required] Boolean
+│    "progress_percent": 100   [Optional] Progress percentage (0-100)
+│  }
+├─ RESPONSE (201 Created): Progress object
+├─ TRIGGERS: Notifications sent on completing 1, 3, 5, 10 lessons
+└─ NOTES: Triggers achievement notifications
+
+---
+
+📝 ENDPOINT: GET /api/courses/progress/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Get specific progress entry
+├─ RESPONSE (200 OK): Progress object
+└─ NOTES: Student can only see own progress
+
+---
+
+📝 ENDPOINT: PUT /api/courses/progress/{id}/
+├─ METHOD: PUT
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Update entire progress entry
+├─ REQUEST BODY: (all fields required)
+│  {
+│    "lesson": 1,
+│    "is_completed": true,
+│    "progress_percent": 100
+│  }
+├─ RESPONSE (200 OK): Updated progress object
+└─ NOTES: Full update
+
+---
+
+📝 ENDPOINT: DELETE /api/courses/progress/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Delete a progress entry
+├─ RESPONSE (204 No Content)
+└─ NOTES: Rarely used - allows resetting progress
+
+---
+
+📝 ENDPOINT: GET /api/courses/wishlist/
+├─ METHOD: GET
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Get student's wishlist (favorite courses)
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 3,
+│    "results": [
+│      {
+│        "id": 1,
+│        "student": 10,
+│        "course": 5,
+│        "course_title": "Advanced Python",
+│        "course_thumbnail": "http://...",
+│        "created_at": "2025-12-20T10:00:00Z"
+│      }
+│    ]
+│  }
+└─ NOTES: Student's wishlist items
+
+---
+
+📝 ENDPOINT: POST /api/courses/wishlist/
+├─ METHOD: POST
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Add course to wishlist
+├─ REQUEST BODY:
+│  {
+│    "course": 1  [Required] Course ID to add to wishlist
+│  }
+├─ RESPONSE (201 Created): Wishlist item object
+└─ NOTES: Automatically sets student to current user
+
+---
+
+📝 ENDPOINT: DELETE /api/courses/wishlist/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Remove course from wishlist
+├─ RESPONSE (204 No Content)
+└─ NOTES: Deletes the wishlist item
+
+---
+
+📝 ENDPOINT: GET /api/courses/dashboard/
+├─ METHOD: GET
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Get student dashboard statistics
+├─ RESPONSE (200 OK):
+│  {
+│    "total_enrolled_courses": 5,
+│    "total_completed_lessons": 42,
+│    "wishlist_count": 3
+│  }
+└─ NOTES: Quick overview of student's activity
+
+---
+
+📝 ENDPOINT: GET /api/courses/instructor/dashboard/
+├─ METHOD: GET
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Get instructor dashboard statistics
+├─ RESPONSE (200 OK):
+│  {
+│    "total_courses": 8,
+│    "total_students": 245
+│  }
+└─ NOTES: Overview of instructor's courses and students
+
+---
+
+📝 ENDPOINT: GET /api/courses/top-students/
+├─ METHOD: GET
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Get top 10 students by completed lessons
+├─ RESPONSE (200 OK):
+│  [
+│    {
+│      "username": "student1",
+│      "completed": 45
+│    },
+│    {
+│      "username": "student2",
+│      "completed": 38
+│    }
+│  ]
+└─ NOTES: Top performers in student courses
+
+================================================================================
+                 3. EXAMS, QUESTIONS & CERTIFICATES (api/)
+================================================================================
+
+📝 ENDPOINT: GET /api/exams/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get all exams with pagination
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 20,
+│    "results": [
+│      {
+│        "id": 1,
+│        "course": 1,
+│        "title": "Python Fundamentals Quiz",
+│        "description": "Test your Python knowledge",
+│        "duration_minutes": 60,
+│        "pass_mark": 50,
+│        "created_at": "2025-12-01T10:00:00Z",
+│        "questions": [...]
+│      }
+│    ]
+│  }
+└─ NOTES: All authenticated users can view exams
+
+---
+
+📝 ENDPOINT: POST /api/exams/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Create a new exam
+├─ REQUEST BODY:
+│  {
+│    "course": 1,                       [Required] Course ID
+│    "title": "Final Exam",            [Required] Exam title
+│    "description": "Final assessment", [Required] Exam description
+│    "duration_minutes": 120,           [Required] Time limit in minutes
+│    "pass_mark": 60                   [Required] Passing score percentage
+│  }
+├─ RESPONSE (201 Created): Exam object with empty questions array
+└─ NOTES: Only instructors can create exams
+
+---
+
+📝 ENDPOINT: GET /api/exams/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get specific exam details
+├─ RESPONSE (200 OK): Exam object with questions (hidden correct_option)
+└─ NOTES: Questions show all options but hide the correct answer
+
+---
+
+📝 ENDPOINT: PUT /api/exams/{id}/
+├─ METHOD: PUT
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Update entire exam
+├─ REQUEST BODY: (all fields required)
+│  {
+│    "course": 1,
+│    "title": "Updated Exam",
+│    "description": "Updated description",
+│    "duration_minutes": 90,
+│    "pass_mark": 50
+│  }
+├─ RESPONSE (200 OK): Updated exam object
+└─ NOTES: Full update required
+
+---
+
+📝 ENDPOINT: PATCH /api/exams/{id}/
+├─ METHOD: PATCH
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Partially update exam
+├─ REQUEST BODY: (any fields)
+│  {
+│    "pass_mark": 70
+│  }
+├─ RESPONSE (200 OK): Updated exam object
+└─ NOTES: Partial update
+
+---
+
+📝 ENDPOINT: DELETE /api/exams/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Delete an exam
+├─ RESPONSE (204 No Content)
+└─ NOTES: Deletes exam and all associated questions/attempts
+
+---
+
+📝 ENDPOINT: POST /api/exams/{id}/submit/
+├─ METHOD: POST
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Submit exam answers and calculate score
+├─ REQUEST BODY:
+│  {
+│    "answers": [
+│      {
+│        "question": 1,              [Required] Question ID
+│        "selected_option": "A"      [Required] Selected option (A, B, C, D)
+│      },
+│      {
+│        "question": 2,
+│        "selected_option": "B"
+│      }
+│    ]
+│  }
+├─ RESPONSE (200 OK):
+│  {
+│    "attempt_id": 5,
+│    "score": 85.5,
+│    "is_passed": true
+│  }
+├─ LOGIC:
+│  - Creates or updates StudentExamAttempt
+│  - Calculates score based on correct answers
+│  - Generates Certificate if score >= pass_mark
+│  - Creates achievement notification
+├─ SIDE EFFECTS:
+│  - StudentAnswer records created
+│  - StudentExamAttempt marked as finished
+│  - Certificate generated if passed
+└─ NOTES: Main endpoint for exam submission
+
+---
+
+📝 ENDPOINT: GET /api/questions/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get all questions (correct_option hidden)
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 100,
+│    "results": [
+│      {
+│        "id": 1,
+│        "exam": 1,
+│        "question_text": "What is Python?",
+│        "option_a": "Programming language",
+│        "option_b": "A snake",
+│        "option_c": "A library",
+│        "option_d": "A framework",
+│        "mark": 1
+│        [correct_option is NOT shown]
+│      }
+│    ]
+│  }
+└─ NOTES: Students cannot see correct answers in list
+
+---
+
+📝 ENDPOINT: POST /api/questions/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Create a new exam question
+├─ REQUEST BODY:
+│  {
+│    "exam": 1,                    [Required] Exam ID
+│    "question_text": "What...",   [Required] Question text
+│    "option_a": "Option A",       [Required] Option A text
+│    "option_b": "Option B",       [Required] Option B text
+│    "option_c": "Option C",       [Required] Option C text
+│    "option_d": "Option D",       [Required] Option D text
+│    "correct_option": "A",        [Required] Correct answer (A, B, C, D)
+│    "mark": 1                     [Required] Points for correct answer
+│  }
+├─ RESPONSE (201 Created): Question object (with correct_option)
+└─ NOTES: Only instructors see correct answers
+
+---
+
+📝 ENDPOINT: GET /api/questions/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get specific question
+├─ RESPONSE (200 OK): Question object (correct_option hidden for students)
+└─ NOTES: Correct answer not shown to students
+
+---
+
+📝 ENDPOINT: PUT /api/questions/{id}/
+├─ METHOD: PUT
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Update entire question
+├─ REQUEST BODY: (all fields required)
+│  {
+│    "exam": 1,
+│    "question_text": "Updated question",
+│    "option_a": "...",
+│    "option_b": "...",
+│    "option_c": "...",
+│    "option_d": "...",
+│    "correct_option": "C",
+│    "mark": 2
+│  }
+├─ RESPONSE (200 OK): Updated question object
+└─ NOTES: Full update
+
+---
+
+📝 ENDPOINT: DELETE /api/questions/{id}/
+├─ METHOD: DELETE
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Delete a question
+├─ RESPONSE (204 No Content)
+└─ NOTES: Removes question from exam
+
+---
+
+📝 ENDPOINT: GET /api/attempts/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get exam attempts
+│  - Students: See only their own attempts
+│  - Instructors: See all attempts in their exams
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 25,
+│    "results": [
+│      {
+│        "id": 1,
+│        "exam": 1,
+│        "student": 10,
+│        "score": 85.5,
+│        "started_at": "2026-01-05T14:00:00Z",
+│        "finished_at": "2026-01-05T15:00:00Z",
+│        "is_passed": true,
+│        "answers": [...]
+│      }
+│    ]
+│  }
+└─ NOTES: ReadOnly - attempts created via /exams/{id}/submit/
+
+---
+
+📝 ENDPOINT: GET /api/attempts/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get specific exam attempt with all answers
+├─ RESPONSE (200 OK): Attempt object with StudentAnswer details
+└─ NOTES: Shows student's answers and which were correct
+
+---
+
+📝 ENDPOINT: GET /api/answers/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get student answers
+│  - Students: Only their own answers
+│  - Instructors: All answers in their exams
+├─ RESPONSE (200 OK):
+│  {
+│    "results": [
+│      {
+│        "id": 1,
+│        "attempt": 1,
+│        "question": 1,
+│        "selected_option": "A",
+│        "is_correct": true
+│      }
+│    ]
+│  }
+└─ NOTES: List of individual answers
+
+---
+
+📝 ENDPOINT: POST /api/answers/
+├─ METHOD: POST
+├─ PERMISSION: IsStudent
+├─ DESCRIPTION: Create individual answer (usually via submit endpoint)
+├─ REQUEST BODY:
+│  {
+│    "attempt": 1,             [Required] StudentExamAttempt ID
+│    "question": 1,            [Required] Question ID
+│    "selected_option": "A"    [Required] Selected option
+│  }
+├─ RESPONSE (201 Created): StudentAnswer object with is_correct flag
+└─ NOTES: Normally handled by submit endpoint
+
+---
+
+📝 ENDPOINT: GET /api/certificates/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get certificates
+│  - Students: Only their own certificates
+│  - Instructors: All certificates from their exams
+├─ RESPONSE (200 OK):
+│  {
+│    "results": [
+│      {
+│        "id": 1,
+│        "attempt": 5,
+│        "student": 10,
+│        "exam": 1,
+│        "certificate_code": "ABC123DEF",
+│        "verification_code": "XYZ789KLM",
+│        "created_at": "2026-01-05T15:30:00Z"
+│      }
+│    ]
+│  }
+└─ NOTES: ReadOnly - auto-generated after passing exam
+
+---
+
+📝 ENDPOINT: GET /api/certificates/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get specific certificate details
+├─ RESPONSE (200 OK): Certificate object
+└─ NOTES: Contains unique certificate code for verification
+
+================================================================================
+                         4. NOTIFICATIONS (api/)
+================================================================================
+
+📝 ENDPOINT: GET /api/notifications/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get user's notifications (ordered by newest first)
+├─ RESPONSE (200 OK):
+│  {
+│    "count": 15,
+│    "results": [
+│      {
+│        "id": 1,
+│        "user": 10,
+│        "user_name": "john_doe",
+│        "title": "إنجاز جديد 🏆",
+│        "message": "لقد أكملت 5 دروس حتى الآن. استمر في التألق!",
+│        "type": "success",
+│        "is_read": false,
+│        "created_at": "2026-01-05T10:00:00Z"
+│      }
+│    ]
+│  }
+├─ FILTER:
+│  - type: Filter by notification type (success, warning, info, error)
+│  - is_read: Filter by read status (true/false)
+└─ NOTES: User only sees their own notifications
+
+---
+
+📝 ENDPOINT: POST /api/notifications/
+├─ METHOD: POST
+├─ PERMISSION: IsInstructor
+├─ DESCRIPTION: Send notification to a student (Instructor only)
+├─ REQUEST BODY:
+│  {
+│    "user": 10,                                [Required] Target student user ID
+│    "title": "Course Reminder",                [Required] Notification title
+│    "message": "Don't forget to complete...", [Required] Message text
+│    "type": "info|success|warning|error"     [Required] Notification type
+│  }
+├─ RESPONSE (201 Created):
+│  {
+│    "id": 50,
+│    "user": 10,
+│    "user_name": "student_name",
+│    "title": "Course Reminder",
+│    "message": "...",
+│    "type": "info",
+│    "is_read": false,
+│    "created_at": "2026-01-05T16:00:00Z"
+│  }
+├─ RESTRICTIONS:
+│  - Students CANNOT create notifications
+│  - Only instructors can send notifications to students
+└─ NOTES: Used for course reminders and system messages
+
+---
+
+📝 ENDPOINT: GET /api/notifications/{id}/
+├─ METHOD: GET
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Get specific notification
+├─ RESPONSE (200 OK): Notification object
+└─ NOTES: User must be the recipient
+
+---
+
+📝 ENDPOINT: POST /api/notifications/{id}/mark_as_read/
+├─ METHOD: POST
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Mark a single notification as read
+├─ REQUEST BODY: None
+├─ RESPONSE (200 OK):
+│  {
+│    "detail": "تم التحديد كمقروء ✅"
+│  }
+└─ NOTES: Updates is_read flag to true
+
+---
+
+📝 ENDPOINT: POST /api/notifications/mark_all_as_read/
+├─ METHOD: POST
+├─ PERMISSION: IsAuthenticated
+├─ DESCRIPTION: Mark all user's unread notifications as read
+├─ REQUEST BODY: None
+├─ RESPONSE (200 OK):
+│  {
+│    "detail": "تم تحديد 5 رسائل كمقروءة 🔔"
+│  }
+├─ SIDE EFFECTS:
+│  - Sets is_read=true for all user's notifications where is_read=false
+└─ NOTES: Bulk operation for convenience
+
+================================================================================
+                           AUTHENTICATION DETAILS
+================================================================================
+
+JWT Token Structure:
+├─ Type: Bearer tokens (JWT format)
+├─ Access Token:
+│  - Expires: 5 minutes (configurable)
+│  - Contains: user_id, email, role
+│  - Used for: API requests in Authorization header
+├─ Refresh Token:
+│  - Expires: 24 hours (configurable)
+│  - Used for: Obtaining new access token
+├─ Usage:
+│  Authorization: Bearer <access_token>
+
+Token Payload Example:
+{
+  "aud": null,
+  "exp": 1234567890,
+  "iat": 1234567800,
+  "jti": "abc123...",
+  "token_type": "access",
+  "user_id": 5,
+  "email": "user@example.com",
+  "role": "student"
+}
+
+================================================================================
+                              PERMISSION MATRIX
+================================================================================
+
+ENDPOINT                      PERMISSION         NOTES
+─────────────────────────────────────────────────────────────────────────────
+Register                      AllowAny           Anyone can register
+Login                         AllowAny           Anyone can login
+Token Refresh                 AllowAny           Anyone can refresh token
+Get Current User              IsAuthenticated    Must be logged in
+
+List Courses                  AllowAny           Public endpoint
+Create Course                 IsInstructor       Only instructors
+Update/Delete Course          IsInstructor       Course creator only
+Get Course                    AllowAny           Public endpoint
+
+List Lessons                  AllowAny           Public endpoint
+Create Lesson                 IsInstructor       Only instructors
+Update/Delete Lesson          IsInstructor       Creator only
+
+List Categories               AllowAny           Read-only for students
+Create/Update Categories      IsInstructor       Restricted
+
+List Enrollments              IsInstructor       Instructors only
+Create Enrollment             IsInstructor       Instructors only
+
+List Student Progress         IsStudent          Own progress only
+Create/Update Progress        IsStudent          Triggers notifications
+
+List Wishlist                 IsStudent          Own wishlist only
+Add to Wishlist               IsStudent          Own wishlist only
+Remove from Wishlist          IsStudent          Own wishlist only
+
+Dashboard (Student)           IsStudent          Own dashboard
+Dashboard (Instructor)        IsInstructor       Own dashboard
+Top Students                  IsInstructor       Instructors only
+
+List Exams                    IsAuthenticated    All users can view
+Create/Update/Delete Exam     IsInstructor       Only instructors
+Submit Exam                   IsStudent          Students only
+
+List Questions                IsAuthenticated    Correct answer hidden
+Create Questions              IsInstructor       Only instructors
+Update/Delete Questions       IsInstructor       Only instructors
+
+List Attempts                 IsAuthenticated    Students see own only
+Get Attempt Detail            IsAuthenticated    Students see own only
+
+List Answers                  IsAuthenticated    Students see own only
+Create Answer                 IsStudent          Student answers only
+
+List Certificates             IsAuthenticated    Students see own only
+Get Certificate               IsAuthenticated    Students see own only
+
+List Notifications            IsAuthenticated    Own notifications only
+Create Notification           IsInstructor       Instructors only
+Mark as Read                  IsAuthenticated    Own notifications only
+Mark All as Read              IsAuthenticated    Own notifications only
+
+================================================================================
+                         ERROR RESPONSE FORMATS
+================================================================================
+
+400 Bad Request:
+{
+  "field_name": ["Error message"],
+  "another_field": ["Error message 1", "Error message 2"]
+}
+
+401 Unauthorized:
+{
+  "detail": "Authentication credentials were not provided."
+}
+
+403 Forbidden:
+{
+  "detail": "You do not have permission to perform this action."
+}
+
+404 Not Found:
+{
+  "detail": "Not found."
+}
+
+500 Server Error:
+{
+  "detail": "Internal server error"
+}
+
+================================================================================
+                            NOTIFICATION TYPES
+================================================================================
+
+Type: "success"  - Positive/achievement notifications (lesson completion)
+Type: "info"     - Information notifications (general updates)
+Type: "warning"  - Warning notifications (deadlines approaching)
+Type: "error"    - Error/critical notifications (failed exams)
+
+Automated Notifications:
+- Lesson completion at 1, 3, 5, 10 completed lessons
+- Exam passed/failed after submission
+- Course enrollment confirmations
+
+================================================================================
+                         PAGINATION & FILTERS
+================================================================================
+
+Pagination:
+- Default page size: 20 items per page (configurable)
+- Query parameter: ?page=1, ?page=2, etc.
+- Response includes: count, next, previous, results
+
+Filters (Example):
+- ?search=python (course search by title/description)
+- ?type=success (notification type filter)
+- ?is_read=false (notification read status)
+
+Ordering:
+- Courses: by created_at (newest first)
+- Users: by date_joined (newest first)
+- Lessons: by order (ascending)
+- Notifications: by created_at (newest first)
+
+================================================================================
+                         TESTING QUICK REFERENCE
+================================================================================
+
+Default Test Users:
+- Admin/Instructor: credentials from Django admin
+- Student: create via /api/accounts/register/
+
+Test Flow:
+1. Register new student: POST /api/accounts/register/
+2. Login: POST /api/accounts/login/
+3. Get profile: GET /api/accounts/me/
+4. List courses: GET /api/courses/courses/
+5. Enroll in course: POST /api/courses/enrollments/
+6. Track progress: POST /api/courses/progress/
+7. Take exam: POST /api/exams/{id}/submit/
+8. Get certificate: GET /api/certificates/
+
+Curl Examples:
+
+# Register
+curl -X POST http://localhost:8000/api/accounts/register/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "student@example.com",
+    "password": "SecurePass123!",
+    "role": "student",
+    "phone_number": "+1234567890"
+  }'
+
+# Login
+curl -X POST http://localhost:8000/api/accounts/login/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "student@example.com",
+    "password": "SecurePass123!"
+  }'
+
+# Get current user
+curl -X GET http://localhost:8000/api/accounts/me/ \
+  -H "Authorization: Bearer <access_token>"
+
+# List courses
+curl -X GET http://localhost:8000/api/courses/courses/
+
+# Submit exam
+curl -X POST http://localhost:8000/api/exams/1/submit/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "answers": [
+      {"question": 1, "selected_option": "A"},
+      {"question": 2, "selected_option": "B"}
+    ]
+  }'
+
+================================================================================
+                         END OF DOCUMENTATION
+================================================================================
+
+Last Updated: 2026-01-05
+Project: Teachify Educational Platform
+Version: 1.0
+Status: Production Ready
