@@ -45,20 +45,22 @@ const CoursePlayer: React.FC<{
 
   const isEn = lang === "en";
 
-const getFullVideoUrl = (videoUrl: string) => {
+  const getFullVideoUrl = (videoUrl: string) => {
     if (!videoUrl) return "";
-    if (videoUrl.startsWith("http")) return videoUrl; // Already absolute
-    // Make relative URL absolute using the backend API base URL
+    if (videoUrl.startsWith("http")) return videoUrl;
     const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
     return `${baseUrl}${videoUrl}`;
   };
 
-  // Download video function
   const handleDownloadVideo = async () => {
     if (!activeLesson?.video_url) return;
 
     try {
-      const response = await fetch(activeLesson.video_url);
+      const fullUrl = getFullVideoUrl(activeLesson.video_url);
+      const response = await fetch(fullUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -222,9 +224,10 @@ const getFullVideoUrl = (videoUrl: string) => {
           <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl relative border border-slate-800">
             {activeLesson?.video_url ? (
               <video
-                src={activeLesson.video_url}
+                src={getFullVideoUrl(activeLesson.video_url)}
                 className="w-full h-full object-contain"
                 controls
+                key={activeLesson.id}
               >
                 Your browser does not support the video tag.
               </video>
