@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Bell, ShoppingCart, Menu, Settings, User as UserIcon, Search, HelpCircle
+  Bell, ShoppingCart, Menu, Settings, User as UserIcon, Search, HelpCircle, Heart, Check
 } from 'lucide-react';
 import { Theme, Lang, ViewMode, Notification, User } from '../types';
 import { api } from '../api/client';
@@ -39,16 +39,44 @@ const Navbar: React.FC<NavbarProps> = ({
     if (!user) return;
     const fetchNotifications = async () => {
       try {
+        console.log('Fetching notifications for user:', user.id);
+        const token = localStorage.getItem('token');
+        console.log('Token exists:', !!token);
         const data = await api.notifications.list(user.id);
+        console.log('Notifications:', data);
         setNotifications(data);
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error('Failed to fetch notifications:', e);
+      }
     };
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, [user]);
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications?.filter(n => !n.is_read)?.length || 0;
+
+  const handleNotificationClick = async (notifId: number, isRead: boolean) => {
+    if (!isRead) {
+      try {
+        await api.notifications.markRead(notifId);
+        setNotifications(prev => 
+          prev.map(n => n.id === notifId ? { ...n, is_read: true } : n)
+        );
+      } catch (e) {
+        console.error('Failed to mark notification as read:', e);
+      }
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await api.notifications.markAllRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (e) {
+      console.error('Failed to mark all as read:', e);
+    }
+  };
 
   return (
     <nav className="fixed top-0 left-0 lg:left-72 right-0 h-20 bg-eden-bg/30 backdrop-blur-md border-b border-white/5 z-30 flex items-center justify-between px-6 lg:px-10">
@@ -95,13 +123,32 @@ const Navbar: React.FC<NavbarProps> = ({
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       className={`absolute top-full mt-4 ${isEn ? 'right-0' : 'left-0'} w-80 bg-eden-card border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-2xl`}
                     >
-                        <div className="p-5 border-b border-white/5 font-black text-[10px] uppercase tracking-widest text-slate-500">{isEn ? 'Intelligence Feed' : 'تغذية الذكاء'}</div>
+                        <div className="p-5 border-b border-white/5 flex justify-between items-center">
+                          <div className="font-black text-[10px] uppercase tracking-widest text-slate-500">{isEn ? 'Intelligence Feed' : 'تغذية الذكاء'}</div>
+                          {unreadCount > 0 && (
+                            <button 
+                              onClick={handleMarkAllAsRead}
+                              className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-eden-accent hover:bg-eden-accent/20 transition-colors"
+                            >
+                              {isEn ? 'Mark all' : 'تحديد الكل'}
+                            </button>
+                          )}
+                        </div>
                         <div className="max-h-80 overflow-y-auto">
-                            {notifications.length > 0 ? (
+                            {notifications && notifications.length > 0 ? (
                                 notifications.map(notif => (
-                                    <div key={notif.id} className={`p-5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${!notif.is_read ? 'bg-eden-accent/5' : ''}`}>
+                                    <div 
+                                      key={notif.id} 
+                                      onClick={() => handleNotificationClick(notif.id, notif.is_read)}
+                                      className={`p-5 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors flex justify-between items-start gap-3 ${!notif.is_read ? 'bg-eden-accent/5' : ''}`}
+                                    >
+                                      <div className="flex-1 min-w-0">
                                         <p className="text-xs font-bold text-white">{notif.title}</p>
                                         <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{notif.message}</p>
+                                      </div>
+                                      {!notif.is_read && (
+                                        <Check size={14} className="text-eden-accent flex-shrink-0 mt-1" />
+                                      )}
                                     </div>
                                 ))
                             ) : (
@@ -114,15 +161,25 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {!isInstructor && (
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={openCart} 
-              className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 hover:text-white transition-all relative"
-            >
-              <ShoppingCart size={18} />
-              {cartCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-eden-accent text-eden-bg text-[10px] rounded-full flex items-center justify-center font-black shadow-glow">{cartCount}</span>}
-            </motion.button>
+            <>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setView(ViewMode.WISHLIST)} 
+                className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 hover:text-red-500 transition-all"
+              >
+                <Heart size={18} />
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={openCart} 
+                className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 hover:text-white transition-all relative"
+              >
+                <ShoppingCart size={18} />
+                {cartCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-eden-accent text-eden-bg text-[10px] rounded-full flex items-center justify-center font-black shadow-glow">{cartCount}</span>}
+              </motion.button>
+            </>
           )}
 
         <div className="h-8 w-px bg-white/5 mx-2"></div>

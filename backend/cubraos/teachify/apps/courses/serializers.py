@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Course, Lesson, Category, Enrollment, LessonProgress, WishlistItem
+from .models import Course, Lesson, Category, Enrollment, LessonProgress, WishlistItem, Resource
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -23,6 +23,27 @@ class LessonSerializer(serializers.ModelSerializer):
         model = Lesson
         fields = ["id", "course", "title", "description", "video_url", "order"]
         read_only_fields = ["id"]
+
+
+# ==========================================
+# 02.5 RESOURCE SERIALIZER
+# ==========================================
+class ResourceSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Resource
+        fields = ["id", "course", "title", "file", "file_url", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def get_file_url(self, obj):
+        request = self.context.get("request")
+        if obj.file:
+            try:
+                return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+            except:
+                return None
+        return None
 
 
 # ==========================================
@@ -60,17 +81,49 @@ class CourseSerializer(serializers.ModelSerializer):
     lessons = LessonSerializer(many=True, read_only=True)
     category_details = CategorySerializer(source="category", read_only=True)
     is_enrolled = serializers.SerializerMethodField()
+    thumbnail = serializers.ImageField(required=False, allow_null=True)
+    thumbnail_url = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = [
             "id", "instructor", "title", "description", 
-            "category", "category_details", "price", "thumbnail", 
-            "created_at", "lessons", "is_enrolled"
+            "category", "category_details", "price", "thumbnail", "thumbnail_url",
+            "created_at", "lessons", "is_enrolled", "status"
         ]
-        read_only_fields = ["id", "instructor", "created_at"]
-    # hint ==============
+        read_only_fields = ["id", "instructor", "created_at", "thumbnail_url"]
+    
+    def get_thumbnail_url(self, obj):
+        """Return absolute URL for thumbnail image or generate a fallback"""
+        request = self.context.get("request")
+        
+        # Try to use existing thumbnail
+        if obj.thumbnail:
+            try:
+                # Check if file actually exists
+                if obj.thumbnail.storage.exists(obj.thumbnail.name):
+                    thumb_url = obj.thumbnail.url
+                    if request:
+                        return request.build_absolute_uri(thumb_url)
+                    else:
+                        return thumb_url
+            except Exception as e:
+                print(f"Error getting thumbnail URL: {e}")
+        
+        # Fallback: Generate a default thumbnail URL based on course ID
+        # This will be a colored placeholder based on the course ID
+        default_thumb = f"/api/courses/placeholder-thumbnail/{obj.id}/"
+        if request:
+            return request.build_absolute_uri(default_thumb)
+        return default_thumb
+    
+    def get_status(self, obj):
+        """Return course status - default to 'published'"""
+        return getattr(obj, 'status', 'published')
+    
     def get_is_enrolled(self, obj):
+        """Check if current user is enrolled"""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
@@ -90,8 +143,15 @@ class WishlistSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "student", "created_at"]
 
     def get_course_thumbnail(self, obj):
+        # Handle both model instances and validated data (OrderedDict)
+        if isinstance(obj, dict):
+            course = obj.get('course')
+            if isinstance(course, dict):
+                return course.get('thumbnail')
+            return None
+        
         request = self.context.get('request')
-        if obj.course.thumbnail:
+        if hasattr(obj, 'course') and obj.course and hasattr(obj.course, 'thumbnail') and obj.course.thumbnail:
             try:
                 return request.build_absolute_uri(obj.course.thumbnail.url) if request else obj.course.thumbnail.url
             except:

@@ -58,6 +58,73 @@ class ExamViewSet(viewsets.ModelViewSet):
             return [IsInstructor()]
         return [permissions.IsAuthenticated()]
 
+    def list(self, request, *args, **kwargs):
+        """Filter exams based on user role"""
+        user = request.user
+        
+        if user.role == "instructor":
+            # Instructors see only their exams
+            queryset = Exam.objects.filter(course__instructor=user)
+        elif user.role == "student":
+            # Students see exams from courses they're enrolled in
+            from apps.courses.models import Enrollment
+            enrolled_courses = Enrollment.objects.filter(
+                student=user
+            ).values_list('course', flat=True)
+            queryset = Exam.objects.filter(course__in=enrolled_courses)
+        else:
+            # Default: all exams for other roles
+            queryset = Exam.objects.all()
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        """Handle nested question creation"""
+        questions_data = request.data.pop("questions", [])
+        
+        # Create the exam without questions
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        exam = serializer.save()
+        
+        # Create questions
+        for q_data in questions_data:
+            options = q_data.get("options", ["", "", "", ""])
+            correct_answer = q_data.get("correctAnswer", "").upper().strip()
+            
+            # Validate correctAnswer is A, B, C, or D
+            if correct_answer not in ["A", "B", "C", "D"]:
+                correct_answer = "A"
+            
+            Question.objects.create(
+                exam=exam,
+                question_text=q_data.get("text", ""),
+                option_a=options[0] if len(options) > 0 else "",
+                option_b=options[1] if len(options) > 1 else "",
+                option_c=options[2] if len(options) > 2 else "",
+                option_d=options[3] if len(options) > 3 else "",
+                correct_option=correct_answer,
+                mark=q_data.get("points", 1),
+            )
+        
+        response_data = ExamSerializer(exam).data
+        
+        # Send notifications to enrolled students
+        from apps.courses.models import Enrollment
+        from apps.common.models import Notification
+        
+        enrolled_students = Enrollment.objects.filter(course=exam.course).values_list('student', flat=True)
+        for student_id in enrolled_students:
+            Notification.objects.create(
+                user_id=student_id,
+                title="New Exam Available 📝",
+                message=f"A new exam '{exam.title}' has been published for {exam.course.title}",
+                type="info"
+            )
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
     # -----------------------------------------
     # STUDENT SUBMIT EXAM
     # POST /api/exams/{id}/submit/
@@ -89,14 +156,32 @@ class ExamViewSet(viewsets.ModelViewSet):
                 exam=exam
             )
 
-            selected = ans["selected_option"].upper()
-            is_correct = selected == question.correct_option.upper()
+            selected_option = ans["selected_option"].upper().strip()
+            
+            # Convert option text to letter (A, B, C, D) if it's not already a letter
+            if selected_option not in ["A", "B", "C", "D"]:
+                # Map option text to letter based on position
+                options = [question.option_a, question.option_b, question.option_c, question.option_d]
+                try:
+                    option_index = options.index(selected_option)
+                    selected_option = chr(65 + option_index)  # Convert 0->A, 1->B, 2->C, 3->D
+                except (ValueError, IndexError):
+                    # If not found, try case-insensitive search
+                    options_lower = [opt.lower() for opt in options]
+                    try:
+                        option_index = options_lower.index(selected_option.lower())
+                        selected_option = chr(65 + option_index)
+                    except ValueError:
+                        selected_option = "A"  # Default to A if not found
+            
+            correct_answer = question.correct_option.upper().strip()
+            is_correct = selected_option == correct_answer
 
             StudentAnswer.objects.update_or_create(
                 attempt=attempt,
                 question=question,
                 defaults={
-                    "selected_option": selected,
+                    "selected_option": selected_option,
                     "is_correct": is_correct
                 }
             )
@@ -123,11 +208,49 @@ class ExamViewSet(viewsets.ModelViewSet):
                 }
             )
 
+        # Send notification to student about their results
+        from apps.common.models import Notification
+        result_type = "success" if attempt.is_passed else "warning"
+        result_message = f"You {'passed' if attempt.is_passed else 'failed'} the exam '{exam.title}' with a score of {score:.1f}%"
+        
+        Notification.objects.create(
+            user=student,
+            title="Exam Results 📊",
+            message=result_message,
+            type=result_type
+        )
+        
         return Response({
             "attempt_id": attempt.id,
             "score": score,
+            "earned_points": obtained_marks,
+            "total_points": total_marks,
             "is_passed": attempt.is_passed,
         })
+
+    # -----------------------------------------
+    # GET EXAM SUBMISSIONS (INSTRUCTOR ONLY)
+    # GET /api/exams/{id}/submissions/
+    # -----------------------------------------
+    @action(detail=True, methods=["get"], permission_classes=[IsInstructor])
+    def submissions(self, request, pk=None):
+        exam = self.get_object()
+        attempts = StudentExamAttempt.objects.filter(exam=exam).select_related('student')
+        
+        submissions_data = []
+        for attempt in attempts:
+            submissions_data.append({
+                'id': attempt.id,
+                'student_id': attempt.student.id,
+                'student_name': attempt.student.username,
+                'earned_points': sum(ans.question.mark for ans in attempt.answers.filter(is_correct=True)),
+                'total_points': sum(q.mark for q in exam.questions.all()),
+                'percentage': round(attempt.score, 2),
+                'is_passed': attempt.is_passed,
+                'submitted_at': attempt.finished_at,
+            })
+        
+        return Response(submissions_data)
 
 # =====================================================
 # STUDENT EXAM ATTEMPTS
@@ -179,9 +302,8 @@ class StudentAnswerViewSet(viewsets.ModelViewSet):
 # CERTIFICATES
 # =====================================================
 
-class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
+class CertificateViewSet(viewsets.ModelViewSet):
     queryset = Certificate.objects.all()
-    serializer_class = CertificateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
@@ -189,3 +311,12 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         if user.role == "student":
             return Certificate.objects.filter(student=user)
         return Certificate.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            from .serializers import CertificateCreateSerializer
+            return CertificateCreateSerializer
+        return CertificateSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save()

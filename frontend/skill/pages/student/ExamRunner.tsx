@@ -22,18 +22,42 @@ const ExamRunner: React.FC<ExamRunnerProps> = ({ exam, lang, onExit }) => {
   const [result, setResult] = useState<ExamResult | null>(null);
   const [certRequested, setCertRequested] = useState(false);
   
-  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>(exam.questions || []);
+  // Transform questions once on mount
+  const transformQuestions = (qs: Question[]) => {
+    return (Array.isArray(qs) ? qs : []).map(q => ({
+        ...q,
+        id: q.id,
+        text: q.text || q.question_text || "",
+        options: [q.option_a || "", q.option_b || "", q.option_c || "", q.option_d || ""].filter(opt => opt.trim() !== ""),
+        correctAnswer: q.correctAnswer || q.correct_option
+    }));
+  };
+
+  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>(
+    exam.questions ? transformQuestions(exam.questions) : []
+  );
   const [loadingQuestions, setLoadingQuestions] = useState(!exam.questions || exam.questions.length === 0);
 
   useEffect(() => {
-    if (loadingQuestions) {
+    if (loadingQuestions && exam.id) {
         api.exams.getQuestions(exam.id).then(qs => {
-            setDynamicQuestions(qs);
+            const transformedQuestions = transformQuestions(qs);
+            console.log("Transformed questions:", transformedQuestions);
+            setDynamicQuestions(transformedQuestions);
             setLoadingQuestions(false);
         }).catch(err => {
-            console.error(err);
+            console.error("Error fetching questions:", err);
+            // If fetching fails, try to use exam.questions
+            if (exam.questions && exam.questions.length > 0) {
+                setDynamicQuestions(transformQuestions(exam.questions));
+            } else {
+                setDynamicQuestions([]);
+            }
             setLoadingQuestions(false);
         });
+    } else if (!loadingQuestions && dynamicQuestions.length === 0 && exam.questions) {
+        // If questions are available in exam object but not yet transformed
+        setDynamicQuestions(transformQuestions(exam.questions));
     }
   }, [exam.id, loadingQuestions]);
 
@@ -42,7 +66,13 @@ const ExamRunner: React.FC<ExamRunnerProps> = ({ exam, lang, onExit }) => {
     setIsSubmitting(true);
 
     try {
-        const res = await api.exams.submit(exam.id, { answers, exam, user });
+        // Convert answers from { [questionId]: option } to [{ question: id, selected_option: option }]
+        const formattedAnswers = Object.entries(answers).map(([qId, selectedOption]) => ({
+            question: parseInt(qId),
+            selected_option: selectedOption
+        }));
+
+        const res = await api.exams.submit(exam.id, { answers: formattedAnswers });
         setResult(res);
         
         const attempted = JSON.parse(localStorage.getItem('attempted_exams') || '[]');
@@ -92,7 +122,7 @@ const ExamRunner: React.FC<ExamRunnerProps> = ({ exam, lang, onExit }) => {
   };
 
   const handleRequestCertificate = async () => {
-    if (!user || certRequested) return;
+    if (!user || certRequested || !exam.instructor_id) return;
     await api.notifications.requestCertificate(exam.course_title, user, exam.instructor_id);
     setCertRequested(true);
   };
@@ -172,11 +202,11 @@ const ExamRunner: React.FC<ExamRunnerProps> = ({ exam, lang, onExit }) => {
 
            <Card className="!p-10 mb-8 !bg-white/5 border-white/10">
                <h3 className="text-2xl md:text-3xl font-bold leading-relaxed mb-10 text-white">
-                   {dynamicQuestions[currentQuestion]?.text}
+                   {dynamicQuestions[currentQuestion]?.text || "Loading question..."}
                </h3>
                
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   {dynamicQuestions[currentQuestion]?.options.map((opt, i) => (
+                   {(dynamicQuestions[currentQuestion]?.options || []).map((opt, i) => (
                        <button
                          key={i}
                          onClick={() => handleOptionSelect(dynamicQuestions[currentQuestion].id, opt)}

@@ -26,7 +26,8 @@ const CoursePlayer: React.FC<{
   lang: Lang;
   theme: Theme;
   isMobile: boolean;
-}> = ({ lang, theme, isMobile }) => {
+  selectedCourse?: any;
+}> = ({ lang, theme, isMobile, selectedCourse }) => {
   const [courses, setCourses] = useState<any[]>([]);
   const [activeCourse, setActiveCourse] = useState<any>(null);
   const [activeLesson, setActiveLesson] = useState<any>(null);
@@ -83,13 +84,28 @@ const CoursePlayer: React.FC<{
       .then((dash) => {
         if (dash.active_courses && dash.active_courses.length > 0) {
           setCourses(dash.active_courses);
-          // Set first course as active
-          setActiveCourse(dash.active_courses[0]);
-          setActiveLesson(dash.active_courses[0].lessons?.[0] || null);
+          // If a specific course is selected from Marketplace, use it
+          if (selectedCourse) {
+            const courseInDashboard = dash.active_courses.find(
+              (c: any) => c.id === selectedCourse.id
+            );
+            if (courseInDashboard) {
+              setActiveCourse(courseInDashboard);
+              setActiveLesson(courseInDashboard.lessons?.[0] || null);
+            } else {
+              // Fallback if not found
+              setActiveCourse(dash.active_courses[0]);
+              setActiveLesson(dash.active_courses[0].lessons?.[0] || null);
+            }
+          } else {
+            // Set first course as active
+            setActiveCourse(dash.active_courses[0]);
+            setActiveLesson(dash.active_courses[0].lessons?.[0] || null);
+          }
         }
       })
       .catch(console.error);
-  }, []);
+  }, [selectedCourse]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });

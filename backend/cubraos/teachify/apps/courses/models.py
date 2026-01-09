@@ -56,6 +56,23 @@ class Lesson(models.Model):
         return f"{self.course.title} — {self.order} — {self.title}"
 
 
+class Resource(models.Model):
+    course = models.ForeignKey(
+        Course,
+        related_name="resources",
+        on_delete=models.CASCADE
+    )
+    title = models.CharField(max_length=255)
+    file = models.FileField(upload_to="resources/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.course.title} — {self.title}"
+
+
         
 #=======================
 #   Progress Tracking

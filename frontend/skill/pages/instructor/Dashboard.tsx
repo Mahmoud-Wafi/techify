@@ -14,12 +14,39 @@ const InstructorDashboard: React.FC<{ lang: Lang, theme: Theme }> = ({ lang, the
 
   const isEn = lang === 'en';
 
-  useEffect(() => {
-    api.courses.getInstructorDashboard().then(setData).catch(console.error);
-    api.instructor.getWalletData().then(setWallet).catch(console.error);
-  }, []);
+//   useEffect(() => {
+//     api.courses.getInstructorDashboard().then(setData).catch(console.error);
+//     api.instructor.getWalletData().then(setWallet).catch(console.error);
+//   }, []);
 
-  if (!data) return <div className="pt-32 text-center text-slate-900 dark:text-white transition-all">Establishing Secure Connection...</div>;
+// Update InstructorDashboard.tsx
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      console.log('Fetching instructor dashboard...');
+      const dashboardData = await api.courses.getInstructorDashboard();
+      console.log('Dashboard data:', dashboardData);
+      setData(dashboardData);
+    } catch (error: any) {
+      console.error('Dashboard error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+    }
+
+    try {
+      console.log('Fetching wallet data...');
+      const walletData = await api.instructor.getWalletData();
+      console.log('Wallet data:', walletData);
+      setWallet(walletData);
+    } catch (error: any) {
+      console.error('Wallet error:', error);
+      console.error('Error response:', error.response?.data);
+    }
+  };
+
+  fetchData();
+}, []);
+  if (!data || !data.stats) return <div className="pt-32 text-center text-slate-900 dark:text-white transition-all">Establishing Secure Connection...</div>;
 
   return (
     <div className="pb-10 pt-32 sm:pt-40 px-4 lg:px-8 max-w-7xl mx-auto min-h-screen">
@@ -42,12 +69,12 @@ const InstructorDashboard: React.FC<{ lang: Lang, theme: Theme }> = ({ lang, the
           <>
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {[
-                { label: isEn ? 'Earnings' : 'الأرباح', value: `$${data.stats.total_earnings}`, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                { label: isEn ? 'Students' : 'الطلاب', value: data.stats.total_students, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                { label: isEn ? 'Courses' : 'الكورسات', value: data.stats.total_courses, icon: BookOpen, color: 'text-primary', bg: 'bg-primary/10' },
-                { label: isEn ? 'Lessons' : 'الدروس', value: data.stats.total_lessons, icon: Video, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-                { label: isEn ? 'Rating' : 'التقييم', value: data.stats.average_rating, icon: Star, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-                { label: isEn ? 'Pending' : 'معلق', value: `$${data.stats.pending_payouts}`, icon: Wallet, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                { label: isEn ? 'Earnings' : 'الأرباح', value: `$${data?.stats?.total_earnings || 0}`, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                { label: isEn ? 'Students' : 'الطلاب', value: data?.stats?.total_students || 0, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                { label: isEn ? 'Courses' : 'الكورسات', value: data?.stats?.total_courses || 0, icon: BookOpen, color: 'text-primary', bg: 'bg-primary/10' },
+                { label: isEn ? 'Lessons' : 'الدروس', value: data?.stats?.total_lessons || 0, icon: Video, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+                { label: isEn ? 'Rating' : 'التقييم', value: data?.stats?.average_rating || 0, icon: Star, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                { label: isEn ? 'Pending' : 'معلق', value: `$${data?.stats?.pending_payouts || 0}`, icon: Wallet, color: 'text-purple-500', bg: 'bg-purple-500/10' },
                 ].map((stat, i) => (
                 <Reveal key={i} delay={i * 0.05} width="100%">
                     <Card className="h-full flex flex-col justify-center border-none shadow-sm hover:shadow-md transition-all">

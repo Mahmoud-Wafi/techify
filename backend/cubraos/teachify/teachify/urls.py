@@ -6,6 +6,8 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from apps.courses.public_views import platform_stats, public_instructors
+
 
 urlpatterns = [
     # -----------------------------
@@ -45,6 +47,10 @@ urlpatterns = [
     # stuednt alert path common
     #--------------------------
     path("api/", include("apps.common.urls")),
+    
+    path('public/stats/', platform_stats, name='platform-stats'),
+    path('public/instructors/', public_instructors, name='public-instructors'),
+
 
     
 ]

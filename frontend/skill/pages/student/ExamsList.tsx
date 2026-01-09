@@ -20,9 +20,13 @@ const ExamsList: React.FC<ExamsListProps> = ({ lang, theme, onStartExam }) => {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const data = await api.exams.list();
-            setPendingExams(data.pending);
-            setHistory(data.history);
+            const exams = await api.exams.list();
+            // Backend now returns array of exams directly
+            setPendingExams(Array.isArray(exams) ? exams : exams?.pending || []);
+            
+            // Fetch exam attempts for history
+            const attempts = await api.attempts.list();
+            setHistory(Array.isArray(attempts) ? attempts : attempts?.results || []);
 
             // Fetch attempt history from local storage for UI logic
             const attempted = localStorage.getItem('attempted_exams');
@@ -74,18 +78,24 @@ const ExamsList: React.FC<ExamsListProps> = ({ lang, theme, onStartExam }) => {
                          <p className="text-sm text-slate-500 mb-4">{exam.course_title}</p>
                          
                          <div className="space-y-2 mb-6 mt-auto">
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                               <Calendar size={14} className="text-slate-400"/> 
-                               <span>{isEn ? "Due:" : "موعد التسليم:"} {new Date(exam.due_date).toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                               <Clock size={14} className="text-slate-400"/> 
-                               <span>{exam.duration_minutes} {isEn ? "Minutes" : "دقيقة"}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                               <HelpCircle size={14} className="text-slate-400"/> 
-                               <span>{exam.question_count} {isEn ? "Questions" : "سؤال"}</span>
-                            </div>
+                            {exam.due_date && (
+                               <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                  <Calendar size={14} className="text-slate-400"/> 
+                                  <span>{isEn ? "Due:" : "موعد التسليم:"} {new Date(exam.due_date).toLocaleDateString()}</span>
+                               </div>
+                            )}
+                            {exam.duration_minutes && (
+                               <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                  <Clock size={14} className="text-slate-400"/> 
+                                  <span>{exam.duration_minutes || exam.time_limit} {isEn ? "Minutes" : "دقيقة"}</span>
+                               </div>
+                            )}
+                            {exam.question_count && (
+                               <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                  <HelpCircle size={14} className="text-slate-400"/> 
+                                  <span>{exam.question_count} {isEn ? "Questions" : "سؤال"}</span>
+                               </div>
+                            )}
                          </div>
 
                          {isAttempted ? (

@@ -44,6 +44,7 @@ export interface Question {
 export interface PendingQuiz {
   id: number;
   title: string;
+  course_id?: string | number;
   course_title: string;
   instructor_id: number; 
   due_date: string;
@@ -82,7 +83,8 @@ export interface Course {
   instructor_id: number; 
   category: number;
   price: string;
-  thumbnail: string;
+  thumbnail?: string | File;
+  thumbnail_url?: string;
   created_at: string;
   is_enrolled: boolean;
   lessons?: Lesson[];

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Notification
+from .models import Notification, CertificateRequest
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -16,3 +16,16 @@ class NotificationSerializer(serializers.ModelSerializer):
             'message', 'type', 'is_read', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
+
+
+class CertificateRequestSerializer(serializers.ModelSerializer):
+    student_name = serializers.ReadOnlyField(source='student.username')
+    instructor_name = serializers.ReadOnlyField(source='instructor.username')
+
+    class Meta:
+        model = CertificateRequest
+        fields = [
+            'id', 'student', 'student_name', 'instructor', 'instructor_name',
+            'course_title', 'status', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'student', 'student_name', 'instructor_name', 'created_at', 'updated_at']
