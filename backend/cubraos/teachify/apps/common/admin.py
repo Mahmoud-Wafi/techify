@@ -3,7 +3,7 @@ from .models import Notification, CertificateRequest
 
 
 # -------------------------
-# Notification Admin
+# Notification Admin   admin panel ------- head admin big boss 
 # -------------------------
 
 @admin.register(Notification)

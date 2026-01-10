@@ -20,6 +20,7 @@ from .serializers import (
     CertificateSerializer,
 )
 
+# from apps.common.permissions import IsInstructor , IsStudent
 # =====================================================
 # PERMISSIONS
 # =====================================================
@@ -44,6 +45,8 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if self.action in ["create", "update", "partial_update", "destroy"]:
             return [IsInstructor()]
         return [permissions.IsAuthenticated()]
+    
+
 
 # =====================================================
 # EXAMS

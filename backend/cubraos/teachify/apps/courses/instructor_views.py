@@ -1,4 +1,3 @@
-# File: backend/cubraos/teachify/apps/courses/instructor_views.py
 """
 Instructor-specific views for wallet, students, and advanced features
 """

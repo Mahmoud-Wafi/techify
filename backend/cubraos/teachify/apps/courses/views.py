@@ -166,27 +166,26 @@ class InstructorDashboardViewSet(viewsets.ViewSet):
             'date': e.enrolled_at.strftime('%Y-%m-%d')
         } for e in latest_enrollments]
         
-        # Pending assignments (mock data - implement Assignment model later)
-        pending_assignments = [
-            {
-                'id': 1,
-                'title': 'Python Data Structures Quiz',
-                'student_name': 'Ahmed Mohamed',
-                'date': '2 hours ago'
-            },
-            {
-                'id': 2,
-                'title': 'React Hooks Assignment',
-                'student_name': 'Sara Ali',
-                'date': '5 hours ago'
-            },
-            {
-                'id': 3,
-                'title': 'Django REST Framework Project',
-                'student_name': 'Mohamed Hassan',
-                'date': '1 day ago'
-            }
-        ]
+        # Pending assessments - exams awaiting instructor review
+        try:
+            from apps.exams.models import StudentExamAttempt
+            
+            # Get recent exam attempts from instructor's courses
+            pending_exams = StudentExamAttempt.objects.filter(
+                exam__course__instructor=request.user
+            ).select_related('student', 'exam', 'exam__course').order_by('-finished_at')[:5]
+            
+            pending_assignments = [{
+                'id': attempt.id,
+                'title': attempt.exam.title,
+                'student_name': attempt.student.username,
+                'score': int(attempt.score) if attempt.score else 0,
+                'date': attempt.finished_at.strftime('%Y-%m-%d %H:%M') if attempt.finished_at else 'In Progress',
+                'course_title': attempt.exam.course.title
+            } for attempt in pending_exams]
+        except Exception as e:
+            print(f"Error fetching pending exams: {e}")
+            pending_assignments = []
         
         # Serialize courses using CourseSerializer
         from .serializers import CourseSerializer

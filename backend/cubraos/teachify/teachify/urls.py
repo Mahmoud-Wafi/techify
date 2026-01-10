@@ -9,7 +9,19 @@ from rest_framework_simplejwt.views import (
 from apps.courses.public_views import platform_stats, public_instructors
 
 
+from django.contrib import admin
+
+admin.site.site_header = "Teachify Educational Platform"
+admin.site.site_title = "Teachify Admin"
+admin.site.index_title = "Welcome to Teachify Administration"
+from teachify.views import admin_dashboard
+from django.conf.urls.i18n import i18n_patterns
+
+
+
 urlpatterns = [
+    path('i18n/', include('django.conf.urls.i18n')),  # Add this
+    path('admin/dashboard/', admin_dashboard, name='admin_dashboard'),
     # -----------------------------
     # Admin Panel
     # -----------------------------

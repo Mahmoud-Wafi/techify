@@ -18,4 +18,6 @@ router.register("certificates", CertificateViewSet, basename="certificates")
 
 
 
+
 urlpatterns = router.urls
+

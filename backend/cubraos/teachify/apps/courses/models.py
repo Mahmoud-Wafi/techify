@@ -23,6 +23,10 @@ class Category(models.Model):
 
 
 class Course(models.Model):
+    CHOICES={
+        "draft":"DRAFT",
+        "publish":"PUBLISH"
+    }
     instructor = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="courses"
     )
@@ -32,7 +36,7 @@ class Course(models.Model):
     price = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     thumbnail = models.ImageField(upload_to="thumbnails/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    # status = models.CharField(max_length=20,choices=CHOICES,default="DRAFT")  IMPORTANT
     def __str__(self):
         return self.title
 
